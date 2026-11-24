@@ -124,6 +124,69 @@ test('abort after temporary creation rolls back; abort after native rename ackno
   assert.equal(await storage.count(), 1);
 });
 
+test('fence rolls back an abort before rename and acknowledges an abort after it', async (t) => {
+  const { storage, path } = await fixture(t);
+  const saved = await storage.save(raw('fence', { text: 'x'.repeat(1024 * 1024), version: 'v1' }));
+  const target = join(path, `${saved.id}.md`);
+  const original = await readFile(target);
+
+  const early = new AbortController();
+  const earlyReason = new Error('precommit');
+  let sawTemporary = false;
+  const earlyHook = createHook({
+    before() {
+      if (!sawTemporary && readdirSync(path).some((name) => name.endsWith('.tmp'))) {
+        sawTemporary = true;
+        early.abort(earlyReason);
+      }
+    }
+  });
+
+  earlyHook.enable();
+  try {
+    await assert.rejects(
+      storage.fence(saved.id, 'v2', { signal: early.signal, expected: 'v1' }),
+      (error) => error === earlyReason
+    );
+  } finally {
+    earlyHook.disable();
+  }
+
+  assert.ok(sawTemporary);
+  assert.deepEqual(await readFile(target), original);
+  const leftovers = await readdir(path);
+  assert.deepEqual(
+    leftovers.filter((name) => name.endsWith('.tmp')),
+    []
+  );
+
+  const inode = statSync(target).ino;
+  const late = new AbortController();
+  let sawCommit = false;
+  const lateHook = createHook({
+    before() {
+      if (!sawCommit && existsSync(target) && statSync(target).ino !== inode) {
+        sawCommit = true;
+        late.abort(new Error('after commit'));
+      }
+    }
+  });
+
+  lateHook.enable();
+  try {
+    await storage.fence(saved.id, 'v3', { signal: late.signal, expected: 'v1' });
+  } finally {
+    lateHook.disable();
+  }
+
+  assert.ok(sawCommit);
+  assert.ok(late.signal.aborted);
+  await assert.rejects(storage.remove(saved.id, { expected: 'v1' }), {
+    code: 'YAMB_POST_CONFLICT'
+  });
+  assert.deepEqual(await storage.find(saved.id), { ...saved, version: 'v3' });
+});
+
 test('returned save values cannot mutate retained query metadata', async (t) => {
   const { storage } = await fixture(t);
   const saved = await storage.save(raw('snapshot', { tags: ['one'] }));

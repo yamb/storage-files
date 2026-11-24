@@ -8,7 +8,7 @@ For GitHub Packages, route the `@yamb` scope to `https://npm.pkg.github.com` and
 
 ## Quick start
 
-Requires Node.js 26.13 or later and `yamb`.
+Requires Node.js 26.13 or later and `yamb` 1.0.5 or later.
 
 ```bash
 pnpm add yamb yamb-storage-files
@@ -74,6 +74,8 @@ Use one owner per trusted local directory, with trusted parent directories. Afte
 
 The file I/O queue admits up to 64 active and waiting operations per owner. Further file I/O requests reject immediately. `find(id)` and `fetch(uri)` read the matching record. `count()` and `entries()` read the in-memory index directly, with `entries()` yielding `[id, uri]` pairs. Writes replace complete records and are atomic per file. Recheck storage before retrying an uncertain write. Concurrent changes can shorten a query page. Start a new iteration after reopening the adapter.
 
+Core stores a version string as the `version` frontmatter key. Because the owner is the only writer and writes run one at a time, a conditional save, removal or fence compares the expected version with the indexed one inside the exclusive write slot and then commits through the usual temporary file and rename; `null` matches a file without a version. A mismatch reports `YAMB_POST_CONFLICT` for an existing post and `YAMB_POST_NOT_FOUND` otherwise. A fence rewrites the file with only the version changed and rejects with `YAMB_STORAGE_WRITE` when the file's metadata no longer matches the index. Files written before versions need no migration. Versions do not detect external edits; coordinate them and call `blog.sync()` as described above.
+
 ### Errors
 
 | Code | Meaning |
@@ -82,7 +84,8 @@ The file I/O queue admits up to 64 active and waiting operations per owner. Furt
 | `YAMB_FILES_OPEN` | Directory, lock, scan or budget failure during open (`FilesOpenError`) |
 | `YAMB_STORAGE_READ`, `YAMB_STORAGE_WRITE` | Read/write, validation, budget, queue or cleanup failure; cause retained |
 | `YAMB_STORAGE_DUPLICATE` | Duplicate URI |
-| `YAMB_POST_NOT_FOUND` | Missing update/removal target; missing reads return `null` |
+| `YAMB_POST_NOT_FOUND` | Missing update/removal/fence target; missing reads return `null` |
+| `YAMB_POST_CONFLICT` | Stored version differs from the expected one; nothing written |
 | `YAMB_STORAGE_NOT_OPEN` | Operation outside an open lifetime |
 | `YAMB_QUERY_VALIDATION` | Invalid query or pagination |
 

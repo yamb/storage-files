@@ -54,7 +54,8 @@ export function project(raw) {
     updatedAt: raw.updatedAt,
     publishedAt: raw.publishedAt,
     options,
-    present
+    present,
+    version: raw.version ?? null
   };
 }
 

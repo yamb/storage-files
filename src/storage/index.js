@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { FilesConfigError } from '../errors/index.js';
 import { setState } from './internal.js';
 import { open, close, sync } from './lifecycle.js';
-import { find, fetch, save, remove, all, count, entries } from './methods.js';
+import { find, fetch, save, remove, fence, all, count, entries } from './methods.js';
 
 const positive = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const ConfigSchema = z.strictObject({
@@ -17,7 +17,7 @@ const ConfigSchema = z.strictObject({
   bytes: positive.default(8388608),
   memory: positive.default(33554432)
 });
-const methods = { open, close, sync, find, fetch, save, remove, all, count, entries };
+const methods = { open, close, sync, find, fetch, save, remove, fence, all, count, entries };
 
 export class FilesStorage {
   constructor(config) {

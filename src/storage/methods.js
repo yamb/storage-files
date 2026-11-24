@@ -1,14 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { unlink } from 'node:fs/promises';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 import {
   StorageReadError,
   StorageWriteError,
   StorageDuplicateError,
+  PostConflictError,
   PostNotFoundError
 } from '#core/errors';
-import { IdSchema, UriSchema } from '#core/schemas';
+import { IdSchema, UriSchema, VersionSchema } from '#core/schemas';
 
 import { assertId, capture, encode, inspect, read, write, same, uuid } from '../file.js';
 import { matches, project, query, select, size } from '../query.js';
@@ -16,6 +18,12 @@ import { classify, enqueue, getState, ready } from './internal.js';
 
 function file(state, id) {
   return join(state.config.path, `${assertId(id)}.md`);
+}
+
+function expect(meta, id, expected) {
+  if (expected !== undefined && meta.version !== expected) {
+    throw new PostConflictError(`id "${id}" has another version`, { details: { id, expected } });
+  }
 }
 
 export async function find(storage, id, options = {}) {
@@ -67,7 +75,7 @@ export async function fetch(storage, uri, options = {}) {
 
 export async function save(storage, input, options = {}) {
   const state = getState(storage);
-  const { signal } = options;
+  const { signal, expected } = options;
   ready(state);
   signal?.throwIfAborted();
 
@@ -83,12 +91,18 @@ export async function save(storage, input, options = {}) {
     return await enqueue(state, true, signal, StorageWriteError, async () => {
       const previous = await inspect(file(state, raw.id));
 
-      if (!insert && (!previous || !state.index.has(raw.id))) {
+      const stored = state.index.get(raw.id);
+
+      if (!insert && (!previous || !stored)) {
         throw new PostNotFoundError(`id "${raw.id}" not found`);
       }
 
       if (insert && previous) {
         throw new StorageWriteError('generated id already exists');
+      }
+
+      if (stored) {
+        expect(stored, raw.id, expected);
       }
 
       const duplicate = state.uris.get(raw.uri);
@@ -100,7 +114,6 @@ export async function save(storage, input, options = {}) {
         throw new StorageWriteError('post capacity exceeded');
       }
 
-      const stored = state.index.get(raw.id);
       const memory = state.memory - (stored ? size(stored) : 0) + bytes;
 
       if (memory > state.config.memory) {
@@ -126,7 +139,7 @@ export async function save(storage, input, options = {}) {
 
 export async function remove(storage, id, options = {}) {
   const state = getState(storage);
-  const { signal } = options;
+  const { signal, expected } = options;
   ready(state);
 
   try {
@@ -140,6 +153,8 @@ export async function remove(storage, id, options = {}) {
         throw new PostNotFoundError(`id "${id}" not found`);
       }
 
+      expect(meta, id, expected);
+
       const current = await inspect(path);
 
       if (!current || !same(info, current)) {
@@ -151,6 +166,54 @@ export async function remove(storage, id, options = {}) {
       state.index.delete(id);
       state.uris.delete(meta.uri);
       state.memory -= size(meta);
+    });
+  } catch (cause) {
+    throw classify(cause, StorageWriteError, signal);
+  }
+}
+
+export async function fence(storage, id, version, options = {}) {
+  const state = getState(storage);
+  const { signal, expected } = options;
+  ready(state);
+
+  try {
+    const path = file(state, id);
+    VersionSchema.parse(version);
+
+    return await enqueue(state, true, signal, StorageWriteError, async () => {
+      const previous = await inspect(path);
+      const stored = state.index.get(id);
+
+      if (!previous || !stored) {
+        throw new PostNotFoundError(`id "${id}" not found`);
+      }
+
+      expect(stored, id, expected);
+
+      const raw = await read(path, id, state.config.bytes, signal);
+
+      if (!raw) {
+        throw new PostNotFoundError(`id "${id}" not found`);
+      }
+
+      if (!isDeepStrictEqual(project(raw), stored)) {
+        throw new StorageWriteError('post changed outside the owner; sync required');
+      }
+
+      raw.version = version;
+
+      const content = encode(raw, state.config.bytes);
+      const meta = project(raw);
+      const memory = state.memory - size(stored) + size(meta);
+
+      if (memory > state.config.memory) {
+        throw new StorageWriteError('metadata memory budget exceeded');
+      }
+
+      await write(state.config.path, id, content, previous, signal);
+      state.index.set(id, meta);
+      state.memory = memory;
     });
   } catch (cause) {
     throw classify(cause, StorageWriteError, signal);
