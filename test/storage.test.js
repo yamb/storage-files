@@ -123,7 +123,8 @@ test('all orders, ties, missing dates, strict bounds, filters, paging and keyset
   }
 
   assert.deepEqual(await slugs(), ['c', 'b', 'a', 'd']);
-  assert.deepEqual(await slugs({ tag: 'one', tags: ['two'] }), ['a']);
+  assert.deepEqual(await slugs({ tags: ['one', 'two'] }), ['a']);
+  assert.deepEqual(await slugs({ tags: ['one'] }), ['b', 'a']);
   assert.deepEqual(await slugs({ status: 'draft', uri: 'drafts/d', tags: [] }), ['d']);
 
   assert.deepEqual(await slugs({ before: '2026-02-01T00:00:00Z', after: '2026-01-01T00:00:00Z' }), [
@@ -147,7 +148,7 @@ test('all orders, ties, missing dates, strict bounds, filters, paging and keyset
     [{ status: '' }, {}],
     [{ options: { x: {} } }, {}],
     [{ cursor: {} }, {}],
-    [{ tag: { $gt: '' } }, {}],
+    [{ tags: [{ $gt: '' }] }, {}],
     [{ unknown: 1 }, {}],
     [{}, { order: 'slug' }],
     [{}, { limit: -1 }],

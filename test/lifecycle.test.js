@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import { createHook } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
-import { mkdtempDisposable, readFile, writeFile, unlink, readdir, symlink } from 'node:fs/promises';
+import {
+  mkdtempDisposable,
+  mkdir,
+  readFile,
+  writeFile,
+  unlink,
+  readdir,
+  symlink
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -165,7 +173,6 @@ test('concurrent open and close drain initialization and allow a later owner', a
 
   const alias = join(dir.path, 'alias');
   const target = join(dir.path, 'target');
-  const { mkdir } = await import('node:fs/promises');
   await mkdir(target);
   await symlink(target, alias);
   await assert.rejects(files({ path: alias }).open(), code('YAMB_FILES_OPEN'));

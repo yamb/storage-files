@@ -1,6 +1,6 @@
 {
   "name": "yamb-storage-files",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Bounded single-writer Markdown file storage for Yamb",
   "keywords": [
     "blog",

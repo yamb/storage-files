@@ -187,14 +187,65 @@ test('fence rolls back an abort before rename and acknowledges an abort after it
   assert.deepEqual(await storage.find(saved.id), { ...saved, version: 'v3' });
 });
 
+test('remove keeps the post on an abort before unlink and acknowledges an abort after it', async (t) => {
+  const { storage, path } = await fixture(t);
+  const saved = await storage.save(raw('removal'));
+  const target = join(path, `${saved.id}.md`);
+
+  const early = new AbortController();
+  const earlyReason = new Error('preunlink');
+  const earlyHook = createHook({
+    before() {
+      early.abort(earlyReason);
+    }
+  });
+
+  earlyHook.enable();
+  try {
+    await assert.rejects(
+      storage.remove(saved.id, { signal: early.signal }),
+      (error) => error === earlyReason
+    );
+  } finally {
+    earlyHook.disable();
+  }
+
+  assert.ok(existsSync(target));
+  assert.equal(await storage.count(), 1);
+
+  const late = new AbortController();
+  let sawUnlink = false;
+  const lateHook = createHook({
+    before() {
+      if (!sawUnlink && !existsSync(target)) {
+        sawUnlink = true;
+        late.abort(new Error('after unlink'));
+      }
+    }
+  });
+
+  lateHook.enable();
+  try {
+    await storage.remove(saved.id, { signal: late.signal });
+  } finally {
+    lateHook.disable();
+  }
+
+  assert.ok(sawUnlink);
+  assert.ok(late.signal.aborted);
+  assert.equal(await storage.count(), 0);
+  assert.deepEqual(await Array.fromAsync(storage.entries()), []);
+  await storage.save(raw('removal'));
+});
+
 test('returned save values cannot mutate retained query metadata', async (t) => {
   const { storage } = await fixture(t);
   const saved = await storage.save(raw('snapshot', { tags: ['one'] }));
 
   saved.tags.push('invented');
 
-  assert.equal(await storage.count({ tag: 'invented' }), 0);
-  assert.equal(await storage.count({ tag: 'one' }), 1);
+  assert.equal(await storage.count({ tags: ['invented'] }), 0);
+  assert.equal(await storage.count({ tags: ['one'] }), 1);
 });
 
 test('partial write and denied temporary cleanup retain both filesystem errors', async (t) => {

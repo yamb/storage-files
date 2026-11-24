@@ -193,9 +193,9 @@ async function closeOnce(state) {
     }
 
     if (state.pending) {
-      await new Promise((resolve) => {
-        state.idle = resolve;
-      });
+      const { promise, resolve } = Promise.withResolvers();
+      state.idle = resolve;
+      await promise;
     }
 
     try {

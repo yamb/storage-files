@@ -66,7 +66,7 @@ Dates in the JSON frontmatter are fixed-precision UTC strings. The body preserve
 
 File reads validate the complete file. Invalid JSON, metadata containing `text`, a filename/ID mismatch, invalid UTF-8, unpaired surrogates and budget overflow fail. Root symlinks, post symlinks, hardlinks, nonregular post files and invalid filenames ending in `.md` are rejected. The directory scan ignores unrelated filenames.
 
-`find(id)` returns `null` without filesystem access for a valid core ID outside the lowercase UUID format. Invalid IDs fail with `YAMB_STORAGE_READ`. Updates and removals require lowercase UUIDs.
+Only lowercase UUIDs are stored. For any other valid core ID, `find(id)` returns `null` and updates, removals and fences reject with `YAMB_POST_NOT_FOUND`, without filesystem access. Invalid IDs fail with `YAMB_STORAGE_READ` or `YAMB_STORAGE_WRITE`.
 
 ### Operational limits
 
