@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
-import { PostSchema } from '#core/schemas';
+import { PostSchema, VersionSchema } from '#core/schemas';
 
 export const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export const temporary =
@@ -33,8 +33,14 @@ function unicode(value) {
 }
 
 export function capture(input) {
-  const parsed = PostSchema.parse(input);
+  const { version, ...post } = input;
+  const parsed = PostSchema.parse(post);
   const raw = z.encode(PostSchema, parsed);
+
+  if (version != null) {
+    raw.version = VersionSchema.parse(version);
+  }
+
   unicode(raw);
 
   return raw;
