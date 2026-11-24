@@ -1,4 +1,4 @@
-# @meritt/yamb-storage-files
+# yamb-storage-files
 
 [![npm version][npm-image]][npm-url] [![Build status][github-actions-image]][github-actions-url] [![Coverage status][coveralls-image]][coveralls-url] [![Dependency status][libraries-image]][libraries-url]
 
@@ -11,14 +11,14 @@ For GitHub Packages, route the `@yamb` scope to `https://npm.pkg.github.com` and
 Requires Node.js 26.13 or later and `yamb`.
 
 ```bash
-pnpm add yamb @meritt/yamb-storage-files
+pnpm add yamb yamb-storage-files
 ```
 
 Use a trusted directory. The adapter creates `./posts` if needed.
 
 ```js
-import { files } from '@meritt/yamb-storage-files';
 import { yamb } from 'yamb';
+import { files } from 'yamb-storage-files';
 
 await using blog = yamb({
   storage: files({
@@ -86,7 +86,7 @@ The file I/O queue admits up to 64 active and waiting operations per owner. Furt
 | `YAMB_STORAGE_NOT_OPEN` | Operation outside an open lifetime |
 | `YAMB_QUERY_VALIDATION` | Invalid query or pagination |
 
-Adapter-specific errors are exported from `@meritt/yamb-storage-files/errors`; shared errors come from `yamb/errors`. Operation signals preserve their native cancellation reason.
+Adapter-specific errors are exported from `yamb-storage-files/errors`; shared errors come from `yamb/errors`. Operation signals preserve their native cancellation reason.
 
 - [Yamb quick start](https://github.com/yamb/yamb#quick-start) for editing, publishing and querying posts
 - [Architecture](docs/architecture.md)
@@ -99,11 +99,11 @@ Adapter-specific errors are exported from `@meritt/yamb-storage-files/errors`; s
 
 MIT. See `LICENSE`.
 
-[npm-image]: https://img.shields.io/npm/v/@meritt/yamb-storage-files?style=flat
-[npm-url]: https://www.npmjs.com/package/@meritt/yamb-storage-files
+[npm-image]: https://img.shields.io/npm/v/yamb-storage-files?style=flat
+[npm-url]: https://www.npmjs.com/package/yamb-storage-files
 [github-actions-image]: https://github.com/yamb/storage-files/actions/workflows/ci.yml/badge.svg
 [github-actions-url]: https://github.com/yamb/storage-files/actions/workflows/ci.yml
 [coveralls-image]: https://coveralls.io/repos/github/yamb/storage-files/badge.svg
 [coveralls-url]: https://coveralls.io/github/yamb/storage-files
-[libraries-image]: https://img.shields.io/librariesio/release/npm/%40meritt%2Fyamb-storage-files?style=flat
-[libraries-url]: https://libraries.io/npm/%40meritt%2Fyamb-storage-files
+[libraries-image]: https://img.shields.io/librariesio/release/npm/yamb-storage-files?style=flat
+[libraries-url]: https://libraries.io/npm/yamb-storage-files

@@ -1,6 +1,6 @@
 {
-  "name": "@meritt/yamb-storage-files",
-  "version": "0.1.0",
+  "name": "yamb-storage-files",
+  "version": "0.1.1",
   "description": "Bounded single-writer Markdown file storage for Yamb",
   "keywords": [
     "blog",
