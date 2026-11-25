@@ -72,9 +72,8 @@ export function enqueue(state, write, signal, ErrorType, fn) {
   }
 
   state.pending++;
-  const promise = new Promise((resolve, reject) => {
-    state.queue.push({ write, signal, ErrorType, fn, resolve, reject });
-  });
+  const { promise, resolve, reject } = Promise.withResolvers();
+  state.queue.push({ write, signal, ErrorType, fn, resolve, reject });
   drain(state);
 
   return promise;

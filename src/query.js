@@ -28,19 +28,14 @@ export function query(input = {}, options = {}) {
 }
 
 export function project(raw) {
-  const options = {};
+  const scalars = [];
   const present = [];
 
   for (const [key, value] of Object.entries(raw.options ?? {})) {
     if (value !== null && typeof value === 'object') {
       present.push(key);
     } else {
-      Object.defineProperty(options, key, {
-        value,
-        enumerable: true,
-        configurable: true,
-        writable: true
-      });
+      scalars.push([key, value]);
     }
   }
 
@@ -53,7 +48,7 @@ export function project(raw) {
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
     publishedAt: raw.publishedAt,
-    options,
+    options: Object.fromEntries(scalars),
     present,
     version: raw.version ?? null
   };
@@ -82,9 +77,6 @@ export function matches(meta, filter, defaults, order = '-publishedAt') {
     }
   }
 
-  if (filter.tag !== undefined && !meta.tags.includes(filter.tag)) {
-    return false;
-  }
   if (filter.tags?.some((tag) => !meta.tags.includes(tag))) {
     return false;
   }
@@ -129,7 +121,10 @@ export function select(index, filter, page, defaults) {
   const descending = order.startsWith('-');
   const field = descending ? order.slice(1) : order;
   const direction = descending ? -1 : 1;
-  const selected = [...index.values()].filter((meta) => matches(meta, filter, defaults, order));
+  const selected = index
+    .values()
+    .filter((meta) => matches(meta, filter, defaults, order))
+    .toArray();
 
   selected.sort((a, b) => {
     const result = compare(a[field], b[field]) || compare(a.uri, b.uri);

@@ -12,12 +12,25 @@ import {
 } from '#core/errors';
 import { IdSchema, UriSchema, VersionSchema } from '#core/schemas';
 
-import { assertId, capture, encode, inspect, read, write, same, uuid } from '../file.js';
+import { capture, encode, inspect, read, write, uuid } from '../file.js';
 import { matches, project, query, select, size } from '../query.js';
 import { classify, enqueue, getState, ready } from './internal.js';
 
 function file(state, id) {
-  return join(state.config.path, `${assertId(id)}.md`);
+  return join(state.config.path, `${id}.md`);
+}
+
+function storable(id) {
+  if (typeof id === 'string' && uuid.test(id)) {
+    return true;
+  }
+
+  IdSchema.parse(id);
+  return false;
+}
+
+function missing(id) {
+  return new PostNotFoundError(`id "${id}" not found`);
 }
 
 function expect(meta, id, expected) {
@@ -34,8 +47,7 @@ export async function find(storage, id, options = {}) {
   try {
     signal?.throwIfAborted();
 
-    if (typeof id !== 'string' || !uuid.test(id)) {
-      IdSchema.parse(id);
+    if (!storable(id)) {
       return null;
     }
 
@@ -82,7 +94,12 @@ export async function save(storage, input, options = {}) {
   try {
     const raw = capture(input);
     const insert = raw.id === undefined;
-    raw.id = insert ? randomUUID() : assertId(raw.id);
+
+    if (insert) {
+      raw.id = randomUUID();
+    } else if (!storable(raw.id)) {
+      throw missing(raw.id);
+    }
 
     const content = encode(raw, state.config.bytes);
     const meta = project(raw);
@@ -94,7 +111,7 @@ export async function save(storage, input, options = {}) {
       const stored = state.index.get(raw.id);
 
       if (!insert && (!previous || !stored)) {
-        throw new PostNotFoundError(`id "${raw.id}" not found`);
+        throw missing(raw.id);
       }
 
       if (insert && previous) {
@@ -143,6 +160,10 @@ export async function remove(storage, id, options = {}) {
   ready(state);
 
   try {
+    if (!storable(id)) {
+      throw missing(id);
+    }
+
     const path = file(state, id);
 
     return await enqueue(state, true, signal, StorageWriteError, async () => {
@@ -150,17 +171,10 @@ export async function remove(storage, id, options = {}) {
       const meta = state.index.get(id);
 
       if (!info || !meta) {
-        throw new PostNotFoundError(`id "${id}" not found`);
+        throw missing(id);
       }
 
       expect(meta, id, expected);
-
-      const current = await inspect(path);
-
-      if (!current || !same(info, current)) {
-        throw new StorageWriteError('post changed before removal');
-      }
-
       signal?.throwIfAborted();
       await unlink(path);
       state.index.delete(id);
@@ -178,15 +192,20 @@ export async function fence(storage, id, version, options = {}) {
   ready(state);
 
   try {
-    const path = file(state, id);
     VersionSchema.parse(version);
+
+    if (!storable(id)) {
+      throw missing(id);
+    }
+
+    const path = file(state, id);
 
     return await enqueue(state, true, signal, StorageWriteError, async () => {
       const previous = await inspect(path);
       const stored = state.index.get(id);
 
       if (!previous || !stored) {
-        throw new PostNotFoundError(`id "${id}" not found`);
+        throw missing(id);
       }
 
       expect(stored, id, expected);
@@ -194,7 +213,7 @@ export async function fence(storage, id, version, options = {}) {
       const raw = await read(path, id, state.config.bytes, signal);
 
       if (!raw) {
-        throw new PostNotFoundError(`id "${id}" not found`);
+        throw missing(id);
       }
 
       if (!isDeepStrictEqual(project(raw), stored)) {

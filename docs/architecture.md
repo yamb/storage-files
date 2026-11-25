@@ -6,7 +6,7 @@ File storage targets small stores in a trusted local directory. The Markdown fil
 
 [Open](../src/storage/lifecycle.js) exclusively creates `.yamb.lock` before scanning. It removes only regular, single-link `.yamb-<UUID>.tmp` files owned by the current user. An unsafe temporary or failed cleanup prevents acquisition. Close and failed open release only the lock they acquired; a replaced lock is preserved.
 
-One FIFO queue permits up to eight concurrent reads and runs save, remove and sync exclusively. Close drains admitted work before releasing the lock. Cursors retain their original open generation.
+One FIFO queue permits up to eight concurrent reads and runs save, remove, fence and sync exclusively. Close drains admitted work before releasing the lock. Cursors retain their original open generation.
 
 ## Commit point
 

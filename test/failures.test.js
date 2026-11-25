@@ -12,7 +12,8 @@ import {
   link,
   mkdir,
   stat,
-  rename
+  rename,
+  rm
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -228,12 +229,14 @@ test('reject traversal, symlink, hardlink, directory, invalid UTF8, Unicode and 
   const { storage, path, dir } = await fixture(t);
   for (const id of [null, 1, {}, '', 'x'.repeat(65)]) {
     await assert.rejects(storage.find(id), code('YAMB_STORAGE_READ'));
+    await assert.rejects(storage.remove(id), code('YAMB_STORAGE_WRITE'));
   }
 
-  for (const id of ['../outside', '/tmp/a', '..', 'a/b', 'a\\b']) {
+  for (const id of ['../outside', '/tmp/a', '..', 'a/b', 'a\\b', randomUUID().toUpperCase()]) {
     assert.equal(await storage.find(id), null);
-    await assert.rejects(storage.save(raw('unsafe', { id })), code('YAMB_STORAGE_WRITE'));
-    await assert.rejects(storage.remove(id), code('YAMB_STORAGE_WRITE'));
+    await assert.rejects(storage.save(raw('unsafe', { id })), code('YAMB_POST_NOT_FOUND'));
+    await assert.rejects(storage.remove(id, { expected: null }), code('YAMB_POST_NOT_FOUND'));
+    await assert.rejects(storage.fence(id, 'v1', { expected: null }), code('YAMB_POST_NOT_FOUND'));
   }
 
   const saved = await storage.save(raw('safe'));
@@ -268,7 +271,6 @@ test('reject traversal, symlink, hardlink, directory, invalid UTF8, Unicode and 
 
   for (let i = 0; i < corruptions.length; i++) {
     if (i > 0) {
-      const { rm } = await import('node:fs/promises');
       await rm(target, { recursive: true, force: true });
       await writeFile(target, original);
     }
